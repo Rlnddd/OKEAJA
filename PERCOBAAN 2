@@ -1,0 +1,196 @@
+#include <LCDWIKI_GUI.h> // Core graphics library
+#include <LCDWIKI_SPI.h> // Hardware-specific library
+#include <LCDWIKI_TOUCH.h> // Touch screen library
+#include <Wire.h>
+#include "Adafruit_TCS34725.h"
+
+// Parameters define
+#define MODEL ILI9341
+#define CS   A5    
+#define CD   A3
+#define RST  A4
+#define MOSI  11
+#define MISO  12
+#define SCK   13
+#define LED  A0
+
+// Touch screen parameters define
+#define TCS   9
+#define TCLK  10
+#define TDOUT 7
+#define TDIN  8
+#define TIRQ  6
+
+// TCS3200 sensor pin define
+#define S0 7
+#define S1 1
+#define S2 9
+#define S3 8
+#define OUT 10
+
+Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);
+LCDWIKI_SPI my_lcd(MODEL, CS, CD, MISO, MOSI, RST, SCK, LED); 
+LCDWIKI_TOUCH my_touch(TCS, TCLK, TDOUT, TDIN, TIRQ);
+
+// Color definitions
+#define BLACK   0x0000
+#define BLUE    0x001F
+#define RED     0xF800
+#define GREEN   0x07E0
+#define WHITE   0xFFFF
+#define YELLOW  0xFFE0
+
+// Button structure
+struct Button {
+    int16_t x, y, w, h;
+    uint16_t bgColor, textColor;
+    const char* label;
+};
+// Function to draw a button
+void drawButton(Button btn) {
+    my_lcd.Set_Draw_color(btn.bgColor);
+    my_lcd.Fill_Rectangle(btn.x, btn.y, btn.x + btn.w, btn.y + btn.h);
+    my_lcd.Set_Text_Back_colour(btn.bgColor);
+    my_lcd.Set_Text_Size(2);
+    my_lcd.Set_Text_colour(btn.textColor);
+    my_lcd.Print_String(btn.label, btn.x + (btn.w / 4), btn.y + (btn.h / 4));
+}
+
+// Function to check if touch is inside a given area
+bool isTouchInside(int x, int y, int w, int h) {
+    my_touch.TP_Scan(0); // Scan touch screen status
+    if (my_touch.TP_Get_State() & TP_PRES_DOWN) { // Check if screen is touched
+        // Check if touch point is inside the specified area
+        if (my_touch.x >= x && my_touch.x <= (x + w) && my_touch.y >= y && my_touch.y <= (y + h)) {
+            return true; // Return true if the touch is inside the area
+        }
+    }
+    return false; // Return false if the touch is not inside the area
+}
+
+// Button coordinates and size
+Button startbtn = {65, 200, 110, 40, RED, WHITE, "START"}; // Start button
+Button resetbtn = {65, 200, 110, 40, RED, WHITE, "RESET"};   // Reset button
+
+int starttcX = 60;   // Touch area X position for START button
+int starttcY = 170;  // Touch area Y position for START button
+int starttcW = 100;  // Touch area width for START button
+int starttcH = 40;   // Touch area height for START button
+
+int resetTouchX = 60;   // Touch area X position for RESET button
+int resetTouchY = 170;  // Touch area Y position for RESET button
+int resetTouchW = 100;  // Touch area width for RESET button
+int resetTouchH = 40;   // Touch area height for RESET button
+
+bool startPressed = false; // Flag to check if START was pressed
+
+void readTCS34725() {
+  if (tcs.begin()) {
+        Serial.println("TCS34725 found!");
+    } else {
+        Serial.println("TCS34725 not found, check connection.");
+         // Stop if sensor not detected
+    }
+    drawButton(startbtn);
+    uint16_t r, g, b, c;
+    float redNorm, greenNorm, blueNorm;
+
+    // Read color data from the sensor
+    tcs.getRawData(&r, &g, &b, &c);
+
+    // Normalize the RGB values
+    redNorm = (float)r / c * 255.0;
+    greenNorm = (float)g / c * 255.0;
+    blueNorm = (float)b / c * 255.0;
+
+    // Color matching logic
+    const int tolerance = 3;
+
+    if (abs(redNorm - 85) <= tolerance && abs(greenNorm - 95) <= tolerance && abs(blueNorm - 64) <= tolerance) {
+        my_lcd.Fill_Screen(YELLOW);
+        my_lcd.Print_String("Protein Detected", 10, 60);
+    } else if (abs(redNorm - 96) <= tolerance && abs(greenNorm - 87) <= tolerance && abs(blueNorm - 54) <= tolerance) {
+        my_lcd.Fill_Screen(RED);
+        my_lcd.Print_String("PH Detected", 10, 60);
+    } else if (abs(redNorm - 79) <= tolerance && abs(greenNorm - 98) <= tolerance && abs(blueNorm - 58) <= tolerance) {
+        my_lcd.Fill_Screen(GREEN);
+        my_lcd.Print_String("NEGATIF PROTEIN", 10, 60);
+    } else {
+        my_lcd.Fill_Screen(BLACK);
+        my_lcd.Print_String("NO SAMPLE", 70, 60);
+        my_lcd.Print_String("PRESS RESET", 60, 90);
+    }
+
+    delay(1000);
+}
+
+// Countdown function
+void countdown() {
+    for (int i = 2; i >= 1; i--) {
+        my_lcd.Fill_Screen(BLACK);
+        my_lcd.Set_Text_colour(WHITE);
+        my_lcd.Set_Text_Back_colour(BLACK);
+        my_lcd.Set_Text_Size(3);
+        my_lcd.Print_Number_Int(i, 110, 140, 2, ' ', 10);
+        delay(1);
+    }
+}
+
+void resetScreen() {
+    // Clear the screen and reset the text and button
+    my_lcd.Fill_Screen(BLACK);
+    my_lcd.Set_Text_colour(WHITE); 
+    my_lcd.Set_Text_Back_colour(BLACK);
+    my_lcd.Set_Text_Size(2);
+    my_lcd.Print_String("TEKAN START ", 50, 50);
+    my_lcd.Print_String("UNTUK MENGULANG",40, 70);
+    // Draw start button again
+    drawButton(startbtn);
+
+    startPressed = false; // Reset flag
+}
+
+void setup() {
+    Serial.begin(9600);
+    my_lcd.Init_LCD();
+    my_lcd.Set_Rotation(2);
+    my_touch.TP_Init(my_lcd.Get_Rotation(), my_lcd.Get_Display_Width(), my_lcd.Get_Display_Height());
+    my_lcd.Fill_Screen(BLACK);
+    my_lcd.Print_String("TEKAN START", 50, 50);
+    my_lcd.Print_String("UNTUK MEMULAI", 40, 70);
+
+
+    // Draw start button
+    drawButton(startbtn);
+    
+}
+
+
+
+
+void loop() {
+    my_touch.TP_Scan(0);
+    if (my_touch.TP_Get_State() & TP_PRES_DOWN) {
+        Serial.print("Touch X: ");
+        Serial.println(my_touch.x);
+        Serial.print("Touch Y: ");
+        Serial.println(my_touch.y);
+    }
+
+    if (!startPressed) {
+        // Check if the start button is pressed
+        if (isTouchInside(starttcX, starttcY, starttcW, starttcH)) {
+            startPressed = true; // Mark start as pressed
+            countdown(); // Start countdown
+            readTCS34725(); // Read color from TCS3200 after countdown
+            drawButton(resetbtn); // Draw reset button
+            delay(50); // Delay to avoid rapid readings
+        }
+    } else {
+        // Check if the reset button is pressed
+        if (isTouchInside(resetTouchX, resetTouchY, resetTouchW, resetTouchH)) {
+            resetScreen(); // Reset the screen
+            delay(50); // Delay to avoid rapid resets
+        }
+    }
+}
