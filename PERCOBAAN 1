@@ -1,0 +1,135 @@
+#include <Wire.h>
+#include "Adafruit_TCS34725.h"
+
+// Initialize TCS34725 sensor
+Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);
+
+// Define colors and their RGB values for protein, pH, and glucose
+int RGBprotein[6][3] = {
+    {88, 95, 57},    // prot1
+    {104, 89, 60},   // prot2
+    {88, 107, 77},   // prot3
+    {85, 106, 81},   // prot4
+    {79, 108, 86},   // prot5
+    {70, 112, 92},   // prot6
+};
+
+int RGBph[7][3] = {
+    {104, 89, 40},   // ph1
+    {103, 93, 80},   // ph2
+    {112, 92, 71},   // ph3
+    {0, 0, 0},       // ph4 (empty)
+    {87, 106, 80},   // ph5
+    {66, 112, 95},   // ph6
+    {52, 112, 110}   // ph7
+};
+
+int RGBglukosa[6][3] = {
+    {67, 101, 69},  // glu1
+    {69, 113, 90},   // glu2
+    {73, 119, 79},   // glu3
+    {96, 103, 74},   // glu4
+    {101, 96, 78},   // glu5
+    {96, 93, 87},    // glu6
+};
+
+// Color matching threshold (tolerance)
+const int tolerance = 10;
+
+String matchColor(int r, int g, int b) {
+    // Match protein colors
+    for (int i = 0; i < 6; i++) {
+        if (abs(RGBprotein[i][0] - r) <= tolerance &&
+            abs(RGBprotein[i][1] - g) <= tolerance &&
+            abs(RGBprotein[i][2] - b) <= tolerance) {
+            switch(i) {
+                case 0: return "==> Result: Protein 1 (15ml)";
+                case 1: return "==> Result: Protein 2 (30ml)";
+                case 2: return "==> Result: Protein 3 (100ml)";
+                case 3: return "==> Result: Protein 4 (150ml)";
+                case 4: return "==> Result: Protein 5 (200ml)";
+                case 5: return "==> Result: Protein 6 (250ml)";
+                default: return "==> Unknown Protein";
+            }
+        }
+    }
+
+    // Match pH colors
+    for (int i = 0; i < 7; i++) {
+        if (abs(RGBph[i][0] - r) <= tolerance &&
+            abs(RGBph[i][1] - g) <= tolerance &&
+            abs(RGBph[i][2] - b) <= tolerance) {
+            switch(i) {
+                case 0: return "==> Result: pH 1";
+                case 1: return "==> Result: pH 2";
+                case 2: return "==> Result: pH 3";
+                case 3: return "==> Result: pH 4 (Invalid)";
+                case 4: return "==> Result: pH 5";
+                case 5: return "==> Result: pH 6";
+                case 6: return "==> Result: pH 7";
+                default: return "==> Unknown pH";
+            }
+        }
+    }
+
+    // Match glucose colors
+    for (int i = 0; i < 6; i++) {
+        if (abs(RGBglukosa[i][0] - r) <= tolerance &&
+            abs(RGBglukosa[i][1] - g) <= tolerance &&
+            abs(RGBglukosa[i][2] - b) <= tolerance) {
+            switch(i) {
+                case 0: return "==> Result: Glucose 1";
+                case 1: return "==> Result: Glucose 2";
+                case 2: return "==> Result: Glucose 3";
+                case 3: return "==> Result: Glucose 4";
+                case 4: return "==> Result: Glucose 5";
+                case 5: return "==> Result: Glucose 6";
+                default: return "==> Unknown Glucose";
+            }
+        }
+    }
+
+    // If no match found
+    return "==> No match found";
+}
+
+void setup() {
+    Serial.begin(9600);
+
+    // Initialize TCS34725
+    if (tcs.begin()) {
+        Serial.println("TCS34725 found!");
+    } else {
+        Serial.println("TCS34725 not found, check connection.");
+        while (1); // Stop if sensor not detected
+    }
+}
+
+void loop() {
+    uint16_t r, g, b, c;
+    float redNorm, greenNorm, blueNorm;
+
+    // Read color data from the sensor
+    tcs.getRawData(&r, &g, &b, &c);
+
+    // Normalize the RGB values
+    redNorm = (float)r / c * 255.0;
+    greenNorm = (float)g / c * 255.0;
+    blueNorm = (float)b / c * 255.0;
+
+    // Convert to integer values
+    int rValue = (int)redNorm;
+    int gValue = (int)greenNorm;
+    int bValue = (int)blueNorm;
+
+    // Match the color and display result
+    String result = matchColor(rValue, gValue, bValue);
+
+    // Output RGB values and result
+    Serial.print("R: "); Serial.print(rValue);
+    Serial.print(" G: "); Serial.print(gValue);
+    Serial.print(" B: "); Serial.println(bValue);
+    Serial.println(result);
+
+    delay(1000); // Wait 1 second before next reading
+}
