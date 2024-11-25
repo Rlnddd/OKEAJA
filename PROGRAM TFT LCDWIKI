@@ -1,0 +1,231 @@
+//Program tes protein urin
+
+#include <LCDWIKI_GUI.h> // graphics library
+#include <LCDWIKI_SPI.h> // Hardware-specific library
+#include <LCDWIKI_TOUCH.h> // Touch screen library
+
+// PIN DISPLAY
+#define MODEL ILI9341
+#define CS   A5    
+#define CD   A3
+#define RST  A4
+#define MOSI  11
+#define MISO  12
+#define SCK   13
+#define LED  A0
+
+// PIN TOUCH SCREEN
+#define TCS   9
+#define TCLK  10
+#define TDOUT 7
+#define TDIN  8
+#define TIRQ  6
+
+// PIN SENSOR TCS3200 
+#define S0 1
+#define S1 2
+#define S2 4
+#define S3 3
+#define OUT 5
+
+//DEKLARASI PIN
+LCDWIKI_SPI my_lcd(MODEL, CS, CD, MISO, MOSI, RST, SCK, LED); 
+LCDWIKI_TOUCH my_touch(TCS, TCLK, TDOUT, TDIN, TIRQ);
+
+// DEFINISI WARNA
+#define BLACK   0x0000
+#define BLUE    0x001F
+#define RED     0xF800
+#define GREEN   0x07E0
+#define WHITE   0xFFFF
+#define YELLOW  0xFFE0
+#define PINK    0xF81F
+#define TUA     0x20FD 
+ 
+int redFrequency = 0;
+int greenFrequency = 0;
+int blueFrequency = 0;
+
+// STRUKTUR PUSH BUTTON 
+struct Button {
+    int16_t x, y, w, h;
+    uint16_t bgColor, textColor;
+    const char* label;
+};
+
+// FUNGSI UNTUK PUSH BUTTON
+void drawButton(Button btn) {
+    my_lcd.Set_Draw_color(btn.bgColor);
+    my_lcd.Fill_Rectangle(btn.x, btn.y, btn.x + btn.w, btn.y + btn.h);
+    my_lcd.Set_Text_Back_colour(btn.bgColor);
+    my_lcd.Set_Text_Size(2);
+    my_lcd.Set_Text_colour(btn.textColor);
+    my_lcd.Print_String(btn.label, btn.x + (btn.w / 4), btn.y + (btn.h / 4));
+}
+
+// FUNGSI AREA SENTUHAN
+bool isTouchInside(int x, int y, int w, int h) {
+    my_touch.TP_Scan(0); // Scan touch screen status
+    if (my_touch.TP_Get_State() & TP_PRES_DOWN) { // Check if screen is touched
+        // Check if touch point is inside the specified area
+        if (my_touch.x >= x && my_touch.x <= (x + w) && my_touch.y >= y && my_touch.y <= (y + h)) {
+            return true; // Return true if the touch is inside the area
+        }
+    }
+    return false; // Return false if the touch is not inside the area
+}
+
+// BUTTON SIZE
+Button startbtn = {65, 200, 110, 40, BLUE, WHITE, "START"}; // Start button
+Button resetbtn = {65, 200, 110, 40, RED, WHITE, "RESET"};   // Reset button
+
+//KORDINAT PUSH BUTTON
+int starttcX = 60;   // Touch area X position for START button
+int starttcY = 170;  // Touch area Y position for START button
+int starttcW = 100;  // Touch area width for START button
+int starttcH = 40;   // Touch area height for START button
+
+int resetTouchX = 60;   // Touch area X position for RESET button
+int resetTouchY = 170;  // Touch area Y position for RESET button
+int resetTouchW = 100;  // Touch area width for RESET button
+int resetTouchH = 40;   // Touch area height for RESET button
+
+bool startPressed = false; // Flag to check if START was pressed
+
+// INSTALASI SENSOR
+void initTCS3200() {
+    pinMode(S0, OUTPUT);
+    pinMode(S1, OUTPUT);
+    pinMode(S2, OUTPUT);
+    pinMode(S3, OUTPUT);
+    pinMode(OUT, INPUT);
+    digitalWrite(S0, HIGH); // Set frequency scaling to 100%
+    digitalWrite(S1, LOW); 
+}
+
+// PEMBACAAN SENSOR
+void readTCS3200Color() {
+    // Membaca frekuensi untuk warna merah
+    digitalWrite(S2, LOW);
+    digitalWrite(S3, LOW);
+    redFrequency = pulseIn(OUT, LOW);
+
+    // Membaca frekuensi untuk warna hijau
+    digitalWrite(S2, HIGH);
+    digitalWrite(S3, HIGH);
+    greenFrequency = pulseIn(OUT, LOW);
+
+    // Membaca frekuensi untuk warna biru
+    digitalWrite(S2, LOW);
+    digitalWrite(S3, HIGH);
+    blueFrequency = pulseIn(OUT, LOW);
+
+    // Kondisi untuk NEGATIF PROTEIN
+    if ((redFrequency >= 126 && redFrequency <= 139) &&
+        (greenFrequency >= 141 && greenFrequency <= 155) &&
+        (blueFrequency >= 132 && blueFrequency <= 145)) 
+        {
+         my_lcd.Fill_Screen(PINK);
+         my_lcd.Set_Text_Size(2);
+         my_lcd.Set_Text_Back_colour(PINK);
+         my_lcd.Print_String("PROTEIN NORMAL", 30, 60);
+         my_lcd.Set_Text_Size(1);
+         my_lcd.Print_String("KADAR PROTEIN= 15(0.15)+ mm/dL(g/L)", 10, 110);
+         }
+    //Kondisi untuk POSITIF PROTEIN
+    else if ((redFrequency >= 128 && redFrequency <= 135) &&
+        (greenFrequency >= 138 && greenFrequency <= 151) &&
+        (blueFrequency >= 122 && blueFrequency <= 138)) 
+       {  
+        my_lcd.Fill_Screen(TUA);
+        my_lcd.Set_Text_Size(2);
+        my_lcd.Set_Text_Back_colour(TUA);
+        my_lcd.Print_String("PROTEIN SEDANG", 30, 60);
+        my_lcd.Set_Text_Size(1);
+        my_lcd.Print_String("KADAR PROTEIN= 300(3.0)+++ mg/dL(g/dL)", 10, 110);
+        my_lcd.Print_String("KADAR PROTEIN= 15(0.15)+ mm/dL(g/L)", 10, 110);
+        }
+      // Tampilan jika tidak ada protein terdeteksi  
+      else {
+        my_lcd.Fill_Screen(BLACK);
+        my_lcd.Set_Text_Back_colour(BLACK);
+        my_lcd.Set_Text_Size(2);
+        my_lcd.Print_String("NO SAMPEL", 70, 60);
+        my_lcd.Print_String("TEKAN RESET", 60, 90);
+        }
+
+    delay(1000); 
+}
+
+// Hitung mundur
+void countdown() {
+    for (int i = 3; i >= 1; i--) {
+        my_lcd.Fill_Screen(BLACK);
+        my_lcd.Set_Text_colour(WHITE);
+        my_lcd.Set_Text_Back_colour(BLACK);
+        my_lcd.Set_Text_Size(3);
+        my_lcd.Print_Number_Int(i, 110, 140, 2, ' ', 10);
+        delay(100); // Wait 1 second for each count
+    }
+}
+//tampilan reset
+void resetScreen() {
+    // Clear the screen and reset the text and button
+    my_lcd.Fill_Screen(BLACK);
+    my_lcd.Set_Text_colour(WHITE); 
+    my_lcd.Set_Text_Back_colour(BLACK);
+    my_lcd.Set_Text_Size(2);
+    my_lcd.Print_String("TEKAN START ", 50, 50);
+    my_lcd.Print_String("UNTUK MENGULANG",40, 70);
+    // Draw start button again
+    drawButton(startbtn);
+
+    startPressed = false; // Reset flag
+}
+
+void setup() {
+    Serial.begin(9600); // Initialize serial communication for debugging
+    my_lcd.Init_LCD();
+    my_lcd.Set_Rotation(2);
+    my_touch.TP_Init(my_lcd.Get_Rotation(), my_lcd.Get_Display_Width(), my_lcd.Get_Display_Height());
+    my_lcd.Fill_Screen(BLACK);
+
+    initTCS3200(); // Initialize TCS3200 sensor
+    
+    my_lcd.Set_Text_colour(WHITE); // Set text color
+    my_lcd.Set_Text_Back_colour(BLACK);
+    my_lcd.Set_Text_Size(2); // Set text size
+    my_lcd.Print_String("TEKAN START ", 50, 50);
+    my_lcd.Print_String("UzNTUK MEMULAI",40, 70);
+    my_lcd.Print_String("KELOMPOK 2",60, 30);
+
+    // Draw start button
+    drawButton(startbtn);
+}
+
+void loop() {
+    my_touch.TP_Scan(0);
+    if (my_touch.TP_Get_State() & TP_PRES_DOWN) {
+        Serial.print("Touch X: ");
+        Serial.println(my_touch.x);
+        Serial.print("Touch Y: ");
+        Serial.println(my_touch.y);
+    }
+
+    if (!startPressed) {
+        // pengecek jika tombol di tekan
+        if (isTouchInside(starttcX, starttcY, starttcW, starttcH)) {
+            startPressed = true; // tanda start di tekan
+            countdown(); // Start countdown
+            readTCS3200Color(); // pembacaan setelah tombol ditekan
+            drawButton(resetbtn); // pembuatan reset button
+            delay(50); // 
+        }
+    } else {
+        // jika reset ditekan
+        if (isTouchInside(resetTouchX, resetTouchY, resetTouchW, resetTouchH)) {
+            resetScreen(); // Reset the screen
+            delay(50); 
+        }
+    }
+}
