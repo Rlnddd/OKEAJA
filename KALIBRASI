@@ -1,0 +1,106 @@
+
+#include <LCDWIKI_GUI.h> // Core graphics library
+#include <LCDWIKI_SPI.h> // Hardware-specific library
+#include <LCDWIKI_TOUCH.h> // Touch screen library
+
+// Parameters define
+#define MODEL ILI9341
+#define CS   A5    
+#define CD   A3
+#define RST  A4
+#define MOSI  11
+#define MISO  12
+#define SCK   13
+#define LED  A0
+
+// Touch screen parameters define
+#define TCS   2
+#define TCLK  3
+#define TDOUT 4
+#define TDIN  5
+#define TIRQ  6
+
+LCDWIKI_SPI my_lcd(MODEL, CS, CD, MISO, MOSI, RST, SCK, LED); 
+LCDWIKI_TOUCH my_touch(TCS, TCLK, TDOUT, TDIN, TIRQ);
+
+// Color definitions
+#define BLACK   0x0000
+#define BLUE    0x001F
+#define RED     0xF800
+#define GREEN   0x07E0
+#define WHITE   0xFFFF
+
+// Button structure
+struct Button {
+    int16_t x, y, w, h;
+    uint16_t bgColor, textColor;
+    const char* label;
+};
+
+// Function to draw a button
+void drawButton(Button btn) {
+    my_lcd.Set_Draw_color(btn.bgColor);
+    my_lcd.Fill_Rectangle(btn.x, btn.y, btn.x + btn.w, btn.y + btn.h);
+    my_lcd.Set_Text_Size(2);
+    my_lcd.Set_Text_colour(btn.textColor);
+    my_lcd.Print_String(btn.label, btn.x + (btn.w / 4), btn.y + (btn.h / 4));
+}
+
+// Function to check if touch is inside a given area
+bool isTouchInside(int x, int y, int w, int h) {
+    my_touch.TP_Scan(0); // Memindai status layar sentuh
+    if (my_touch.TP_Get_State() & TP_PRES_DOWN) { // Memeriksa apakah layar disentuh
+        // Memeriksa apakah titik sentuh berada dalam area yang ditentukan
+        if (my_touch.x >= x && my_touch.x <= (x + w) && my_touch.y >= y && my_touch.y <= (y + h)) {
+            return true; // Mengembalikan true jika sentuhan berada di dalam area
+        }
+    }
+    return false; // Mengembalikan false jika sentuhan tidak dalam area
+}
+
+// Koordinat dan ukuran tombol color
+Button colorBtn = {10, 50, 80, 40, RED, WHITE, "COLOR"}; // Tampilan tombol color
+// Koordinat dan ukuran area sentuh untuk tombol color
+int colorTouchX = 188;   // X posisi area sentuh
+int colorTouchY = 239;  // Y posisi area sentuh
+int colorTouchW = 80;   // Lebar area sentuh
+int colorTouchH = 40;   // Tinggi area sentuh
+
+// Koordinat dan ukuran tombol clear
+Button clearBtn = {120, 50, 80, 40, RED, WHITE, "CLEAR"}; // Tampilan tombol clear
+// Koordinat dan ukuran area sentuh untuk tombol clear
+int clearTouchX = 188;  // X posisi area sentuh
+int clearTouchY = 83;  // Y posisi area sentuh
+int clearTouchW = 80;    // Lebar area sentuh
+int clearTouchH = 40;    // Tinggi area sentuh
+
+void setup() {
+    Serial.begin(9600); // Inisialisasi komunikasi serial untuk debugging
+    my_lcd.Init_LCD();
+    my_touch.TP_Init(my_lcd.Get_Rotation(), my_lcd.Get_Display_Width(), my_lcd.Get_Display_Height());
+    my_lcd.Fill_Screen(BLACK);
+    
+    // Gambar tombol
+    drawButton(colorBtn);  // Gambar tombol color
+    drawButton(clearBtn);  // Gambar tombol clear
+}
+
+void loop() {
+  my_touch.TP_Scan(0);
+    if (my_touch.TP_Get_State() & TP_PRES_DOWN) {
+        Serial.print("Touch X: ");
+        Serial.println(my_touch.x);
+        Serial.print("Touch Y: ");
+        Serial.println(my_touch.y);
+    // Cek apakah area sentuh tombol color ditekan
+    if (isTouchInside(colorTouchX, colorTouchY, colorTouchW, colorTouchH)) {
+        my_lcd.Fill_Screen(GREEN); // Aksi jika area sentuh tombol color ditekan
+        delay(500); // Delay untuk menghindari pembacaan cepat
+    }
+    // Cek apakah area sentuh tombol clear ditekan
+    else if (isTouchInside(clearTouchX, clearTouchY, clearTouchW, clearTouchH)) {
+        my_lcd.Fill_Screen(BLUE);  // Aksi jika area sentuh tombol clear ditekan
+        delay(500); // Delay untuk menghindari pembacaan cepat
+    }
+}
+}
